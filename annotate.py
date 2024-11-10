@@ -29,8 +29,6 @@ def load_evaluations(evaluation_file_path, pgn_positions):
     evals = {}
     found_positions = 0  # To track how many positions have been found
     total_positions = len(pgn_positions)
-    last_found_progress = -1  # Initial value to ensure first print happens
-    
     print(f"Loading evaluations from: {evaluation_file_path}")
     
     with open(evaluation_file_path, 'r') as f:
@@ -116,7 +114,8 @@ def get_visits_from_node(node):
     # Print fen
     visits = pgn_positions.get(fen, 0)
     return visits
-def add_valations_to_node(node, move_evals):
+
+def add_variations_to_node(node, move_evals):
     ## Get fen from node
     ## Add the evaluations as a comment to the move
     ## Add the evals and move to the node
@@ -137,20 +136,10 @@ def add_valations_to_node(node, move_evals):
                     # sort the pvs by cp or mate.
                     # cp may be None if mate is certain
                     eval["pvs"].sort(key=lambda x: x.get("mate", x.get("cp", 0)), reverse=True)
-                    eval["pvs"] = eval["pvs"][0:max_variations]
-                    best_pv = eval["pvs"][0]
-                    ## Initiate PvScore and add score to it
-                    if "mate" in best_pv and best_pv["mate"] is not None:
-                        score = chess.engine.Mate(best_pv["mate"])
-                    else:
-                        score = chess.engine.Cp(best_pv["cp"])
-                    # It is always White so beat it!
-                    eval_score = chess.engine.PovScore(score, chess.WHITE)
-                    node.set_eval(eval_score, depth = eval["depth"])
-                    visits = get_visits_from_node(node)
-                    if visits > 1:
-                        node.comment = f"Visits: {get_visits_from_node(node)}"
-                    for pv in eval["pvs"]:
+                    top_pvs = eval["pvs"]
+                    #top_pvs = eval["pvs"][0:max_variations]
+
+                    for pv in top_pvs:
                         # pv is a dictionary with keys 'cp', 'line' and 'mate'
                         # 'cp' is the centipawn evaluation, 'line' is the best line and 'mate' is the mate score
                         # if mate is certain, cp is None 
@@ -181,6 +170,25 @@ def add_valations_to_node(node, move_evals):
 def append_to_file(output_file_path, content):
     with open(output_file_path, 'a') as output_file:
         output_file.write(content)
+def add_evaluation_to_node(node, move_evals, next_move):
+    if move_evals:
+        if "evals" in move_evals:
+            move_evals = move_evals["evals"]
+            ## Keeping max/max few depth evaluation
+            move_evals.sort(key=lambda x: x["depth"], reverse=True)
+            for eval in move_evals:
+                if "pvs" in eval:
+                    for pv in eval["pvs"]:
+                        if pv["line"].split()[0] == next_move:
+                            # Add score to the node
+                            if "mate" in pv and pv["mate"] is not None:
+                                score = chess.engine.Mate(pv["mate"])
+                            else:
+                                score = chess.engine.Cp(pv["cp"])
+                            node.set_eval(chess.engine.PovScore(score, chess.WHITE), depth = eval["depth"])
+                            return node
+    return node
+
 
 def annotate_pgn(pgn_file_path, evaluation_file_path, output_file_path):
     global pgn_positions
@@ -213,18 +221,32 @@ def annotate_pgn(pgn_file_path, evaluation_file_path, output_file_path):
             fen = fen_modify(fen)
             # Add number of times the position is repeated
             move_evals =  evals.get(fen, None)
-            node = add_valations_to_node(node, move_evals)
+            moves_array = []
+            ## add moves to moves_array
             for move in game.mainline_moves():
-                board.push(move)
+                moves_array.append(move.uci())
+            try:
+                next_move =  moves_array.pop(0)
+            except:
+                next_move = None
+            node = add_variations_to_node(node, move_evals)
+            for move in game.mainline_moves():
                 # Generate FEN and modify the last two parts (half-move clock and full move number)
+
+                board.push(move)
                 fen = board.fen() # Or just pass True?
                 fen = fen_modify(fen)
                 move_evals =  evals.get(fen, None)
                 visits = get_visits_from_node(node)
                 if visits > 1:
-                    node.comment = f"Visits: {visits}"
+                    node.comment += f" Visits: {visits}"
                 node = node.add_main_variation(move)
-                node = add_valations_to_node(node, move_evals)
+                try:
+                    next_move = moves_array.pop(0)
+                except:
+                    next_move = None
+                node = add_variations_to_node(node, move_evals)
+                node = add_evaluation_to_node(node, move_evals, next_move)
             # write to the end of file output_file
             content = str(annotated_game) + "\n\n"
             append_to_file(output_file_path, content)
@@ -233,7 +255,7 @@ def annotate_pgn(pgn_file_path, evaluation_file_path, output_file_path):
             # Print progress
             if games_annoted % 1000 == 0:
                 print(f"Annotated {games_annoted} games so far")
-            if debug and games_annoted > 1000:
+            if debug and games_annoted > 10:
                 print(f"Debug Early Return")
                 return
 
