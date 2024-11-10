@@ -104,6 +104,9 @@ def fen_modify(fen):
     return fen
 def get_visits_from_node(node):
     global pgn_positions
+    ## Returns 0 for start of the game
+    if node.board().fullmove_number == 1 and node.board().turn == chess.WHITE:
+        return 0
     ## Get fen from node and node could be a variation
     fen = node.board().fen()
     fen = fen_modify(fen)
