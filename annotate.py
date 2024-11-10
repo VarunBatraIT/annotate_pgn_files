@@ -89,6 +89,9 @@ def generate_fens_from_pgn(pgn_file_path):
             number_of_pgn_processed += 1
             if number_of_pgn_processed % 1000 == 0:
                 print(f"Processed {number_of_pgn_processed} games")
+            if debug and number_of_pgn_processed > 1000:
+                print(f"Debug Early Return")
+                return fens
     
     # Print the total unique positions and the top 10 FENs
     print(f"Total unique positions (FENs) to annotate: {len(fens)}")
@@ -175,10 +178,16 @@ def add_valations_to_node(node, move_evals):
                                 is_first_move = False
     return node
 
-
+def append_to_file(output_file_path, content):
+    with open(output_file_path, 'a') as output_file:
+        output_file.write(content)
 
 def annotate_pgn(pgn_file_path, evaluation_file_path, output_file_path):
     global pgn_positions
+    ## Delete output file first
+    if Path(output_file_path).is_file():
+        os.remove(output_file_path)
+
     pgn_positions = generate_fens_from_pgn(pgn_file_path)
     evals = load_evaluations(evaluation_file_path, pgn_positions)
     print (f"Total positions found in evaluations: {len(evals)}")
@@ -188,8 +197,7 @@ def annotate_pgn(pgn_file_path, evaluation_file_path, output_file_path):
     #}
 
     # Array of all new pgn that will contain the evaluations
-    annotated_pgn = []
-
+    games_annoted = 0
     with open(pgn_file_path, 'r') as pgn_file:
         while (game := chess.pgn.read_game(pgn_file)) is not None:
             board = game.board()
@@ -217,13 +225,18 @@ def annotate_pgn(pgn_file_path, evaluation_file_path, output_file_path):
                     node.comment = f"Visits: {visits}"
                 node = node.add_main_variation(move)
                 node = add_valations_to_node(node, move_evals)
-            annotated_pgn.append(str(annotated_game))
-            annotated_pgn.append("\n\n")
+            # write to the end of file output_file
+            content = str(annotated_game) + "\n\n"
+            append_to_file(output_file_path, content)
+            games_annoted += 1
 
+            # Print progress
+            if games_annoted % 1000 == 0:
+                print(f"Annotated {games_annoted} games so far")
+            if debug and games_annoted > 1000:
+                print(f"Debug Early Return")
+                return
 
-    # Write the annotated games to a new PGN file
-    with open(output_file_path, 'w') as output_file:
-        output_file.writelines(annotated_pgn)
 
 
 # Paths to input and output files
