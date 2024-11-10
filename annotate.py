@@ -128,8 +128,9 @@ def add_valations_to_node(node, move_evals):
                 # 'knodes' is the number of nodes searched and 'depth' is the search depth
                 # Add the varrious lines as variations
                 if "pvs" in eval:
-                    # sort the pvs by cp and mate (if mate is present it is first) and add the first three as variations
-                    eval["pvs"].sort(key=lambda x: x["mate"] if "mate" in x and x["mate"] is not None else x["cp"])
+                    # sort the pvs by cp or mate.
+                    # cp may be None if mate is certain
+                    eval["pvs"].sort(key=lambda x: x.get("mate", x.get("cp", 0)), reverse=True)
                     eval["pvs"] = eval["pvs"][0:max_variations]
                     best_pv = eval["pvs"][0]
                     ## Initiate PvScore and add score to it
@@ -143,13 +144,11 @@ def add_valations_to_node(node, move_evals):
                     visits = get_visits_from_node(node)
                     if visits > 1:
                         node.comment = f"Visits: {get_visits_from_node(node)}"
-
-
                     for pv in eval["pvs"]:
                         # pv is a dictionary with keys 'cp', 'line' and 'mate'
                         # 'cp' is the centipawn evaluation, 'line' is the best line and 'mate' is the mate score
                         # if mate is certain, cp is None 
-
+                        is_first_move = True
                         pv_moves =  pv["line"].split()[0:max_variations_depth]
                         pv_node = node
                         for pv_move in pv_moves:
@@ -169,7 +168,9 @@ def add_valations_to_node(node, move_evals):
                             # If there is a mate value, add it
                             if "mate" in pv and pv["mate"] is not None:
                                 pv_node.comment += f" Mate in {pv['mate']},"
-                            pv_node.comment += f" Nodes: {eval['knodes']}, Depth: {eval['depth']}"
+                            if is_first_move:
+                                pv_node.comment += f" Nodes: {eval['knodes']}, Depth: {eval['depth']}"
+                                is_first_move = False
     return node
 
 
@@ -214,7 +215,6 @@ def annotate_pgn(pgn_file_path, evaluation_file_path, output_file_path):
                     node.comment = f"Visits: {visits}"
                 node = node.add_main_variation(move)
                 node = add_valations_to_node(node, move_evals)
-
             annotated_pgn.append(str(annotated_game))
             annotated_pgn.append("\n\n")
 
