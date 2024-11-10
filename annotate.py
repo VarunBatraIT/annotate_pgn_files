@@ -140,7 +140,9 @@ def add_valations_to_node(node, move_evals):
                     # It is always White so beat it!
                     eval_score = chess.engine.PovScore(score, chess.WHITE)
                     node.set_eval(eval_score, depth = eval["depth"])
-                    node.comment = f"Visits: {get_visits_from_node(node)}"
+                    visits = get_visits_from_node(node)
+                    if visits > 1:
+                        node.comment = f"Visits: {get_visits_from_node(node)}"
 
 
                     for pv in eval["pvs"]:
@@ -162,11 +164,11 @@ def add_valations_to_node(node, move_evals):
                             eval_score = chess.engine.PovScore(score, chess.WHITE)
                             pv_node.set_eval(eval_score, depth = eval["depth"])
                             visits = get_visits_from_node(pv_node)
-                            if visits > 0:
+                            if visits > 1:
                                 pv_node.comment += f" Visits: {visits}"
                             # If there is a mate value, add it
                             if "mate" in pv and pv["mate"] is not None:
-                                pv_node.comment += f" Mate in {pv['mate']}"
+                                pv_node.comment += f" Mate in {pv['mate']},"
                             pv_node.comment += f" Nodes: {eval['knodes']}, Depth: {eval['depth']}"
     return node
 
@@ -207,8 +209,9 @@ def annotate_pgn(pgn_file_path, evaluation_file_path, output_file_path):
                 fen = board.fen() # Or just pass True?
                 fen = fen_modify(fen)
                 move_evals =  evals.get(fen, None)
-
-                node.comment = f"Visits: {get_visits_from_node(node)}"
+                visits = get_visits_from_node(node)
+                if visits > 1:
+                    node.comment = f"Visits: {visits}"
                 node = node.add_main_variation(move)
                 node = add_valations_to_node(node, move_evals)
 
