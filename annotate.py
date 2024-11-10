@@ -157,21 +157,20 @@ def add_valations_to_node(node, move_evals):
                         for pv_move in pv_moves:
                             variation_move = chess.Move.from_uci(pv_move)
                             pv_node = pv_node.add_variation(variation_move) 
-                            ## Add the evaluation as a comment to the variation
-                            ## Add the evals and move to the node
-                            if "mate" in pv and pv["mate"] is not None:
-                                score = chess.engine.Mate(pv["mate"])
-                            else:   
-                                score = chess.engine.Cp(pv["cp"])
-                            eval_score = chess.engine.PovScore(score, chess.WHITE)
-                            pv_node.set_eval(eval_score, depth = eval["depth"])
                             visits = get_visits_from_node(pv_node)
                             if visits > 1:
                                 pv_node.comment += f" Visits: {visits}"
                             # If there is a mate value, add it
-                            if "mate" in pv and pv["mate"] is not None:
-                                pv_node.comment += f" Mate in {pv['mate']},"
                             if is_first_move:
+                                if "mate" in pv and pv["mate"] is not None:
+                                    score = chess.engine.Mate(pv["mate"])
+                                    pv_node.comment += f" Mate in {pv['mate']},"
+                                else:
+                                    score = chess.engine.Cp(pv["cp"])
+                                ## Add the evals and move to the node
+                                eval_score = chess.engine.PovScore(score, chess.WHITE)
+                                pv_node.set_eval(eval_score, depth = eval["depth"])
+                                ## Add the evaluation as a comment to the variation
                                 pv_node.comment += f" Nodes: {eval['knodes']}, Depth: {eval['depth']}"
                                 is_first_move = False
     return node
